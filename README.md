@@ -1,4 +1,4 @@
-# 🔒 SSL Certificate Monitor
+# 🔒 SSL Certificate Monitor with MS Teams Alerts
 
 Simple, zero-dependency SSL certificate expiration checker with a premium dashboard and Microsoft Teams alerts.
 
