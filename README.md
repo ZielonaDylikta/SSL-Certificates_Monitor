@@ -29,6 +29,9 @@ Simple, zero-dependency SSL certificate expiration checker with a premium dashbo
 ```bash
 mkdir certcheck && cd certcheck
 
+update docker-compose.yml with your webhooks
+docker compose up -d --build
+
 certcheck/
 ├── certcheck.py
 ├── template.html
