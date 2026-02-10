@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSL Certificate Status</title>
+    <style>
+        :root {
+            --bg-primary: #06060e;
+            --bg-secondary: #0d0d1a;
+            --bg-card: #111122;
+            --bg-card-hover: #161630;
+            --bg-header: #0a0a18;
+            --border: rgba(255,255,255,0.04);
+            --border-hover: rgba(255,255,255,0.08);
+            --text-primary: #eee;
+            --text-secondary: #777;
+            --text-muted: #444;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --yellow: #eab308;
+            --orange: #f97316;
+            --red: #ef4444;
+            --expired: #dc2626;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 20% 10%, rgba(99,102,241,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139,92,246,0.04) 0%, transparent 60%),
+                radial-gradient(ellipse 50% 40% at 50% 50%, rgba(34,197,94,0.02) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header-icon {
+            font-size: 2.2em;
+            margin-bottom: 12px;
+            display: inline-block;
+            filter: drop-shadow(0 0 20px rgba(99,102,241,0.3));
+        }
+
+        h1 {
+            font-size: 1.8em;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+
+        .stats {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            transition: all 0.2s ease;
+        }
+
+        .stat:hover {
+            border-color: var(--border-hover);
+            transform: translateY(-1px);
+        }
+
+        .stat-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .stat-dot.green   { background: var(--green);   box-shadow: 0 0 8px var(--green); }
+        .stat-dot.yellow  { background: var(--yellow);  box-shadow: 0 0 8px var(--yellow); }
+        .stat-dot.red     { background: var(--red);     box-shadow: 0 0 8px var(--red); }
+        .stat-dot.expired { background: var(--expired); box-shadow: 0 0 8px var(--expired); }
+        .stat-dot.gray    { background: #555; }
+
+        .table-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.02);
+            animation: fadeUp 0.5s ease forwards;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead th {
+            background: var(--bg-header);
+            padding: 14px 20px;
+            text-align: left;
+            color: var(--text-secondary);
+            font-size: 0.7em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        thead th:nth-child(4) { text-align: right; }
+        thead th:last-child   { text-align: center; }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: all 0.15s ease;
+            animation: fadeUp 0.3s ease forwards;
+            opacity: 0;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--bg-card-hover); }
+
+        td { padding: 14px 20px; font-size: 0.9em; }
+
+        .site-name {
+            font-weight: 600;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .site-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .issuer      { color: var(--text-secondary); font-size: 0.85em; }
+        .expiry-date { color: var(--text-secondary); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+
+        .days-cell {
+            text-align: right;
+            font-weight: 700;
+            font-size: 0.95em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .days-bar-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .days-bar {
+            width: 60px;
+            height: 4px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .days-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-size: 0.75em;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .status-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .status-badge.ok       { background: rgba(34,197,94,0.1);   color: var(--green);   border: 1px solid rgba(34,197,94,0.15); }
+        .status-badge.soon     { background: rgba(234,179,8,0.1);   color: var(--yellow);  border: 1px solid rgba(234,179,8,0.15); }
+        .status-badge.warning  { background: rgba(249,115,22,0.1);  color: var(--orange);  border: 1px solid rgba(249,115,22,0.15); }
+        .status-badge.critical { background: rgba(239,68,68,0.1);   color: var(--red);     border: 1px solid rgba(239,68,68,0.15); animation: pulse 2s ease-in-out infinite; }
+        .status-badge.expired  { background: rgba(220,38,38,0.15);  color: var(--expired); border: 1px solid rgba(220,38,38,0.2);  animation: pulse 1.5s ease-in-out infinite; }
+        .status-badge.error    { background: rgba(100,100,100,0.1); color: #888;           border: 1px solid rgba(100,100,100,0.15); }
+
+        .status-cell { text-align: center; }
+        .error-tip   { cursor: help; border-bottom: 1px dashed #555; }
+
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            padding: 16px;
+            color: var(--text-muted);
+            font-size: 0.75em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .footer-dot {
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+            gap: 16px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin   { to { transform: rotate(360deg); } }
+        @keyframes pulse  { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 20px 12px; }
+            h1 { font-size: 1.4em; }
+            td, th { padding: 10px 12px; }
+            .days-bar { display: none; }
+            .stat { padding: 8px 14px; font-size: 0.8em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-icon">🔒</div>
+            <h1>Certificate Monitor</h1>
+            <p class="subtitle" id="subtitle">Loading...</p>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Site</th>
+                        <th>Issuer</th>
+                        <th>Expires</th>
+                        <th style="text-align:right">Days Left</th>
+                        <th style="text-align:center">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr><td colspan="5">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <span>Checking certificates...</span>
+                        </div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <span id="lastUpdate">—</span>
+            <span class="footer-dot"></span>
+            <span>Page refreshes every 5m</span>
+            <span class="footer-dot"></span>
+            <span>Certs checked hourly</span>
+            <span class="footer-dot"></span>
+            <span>Sorted by urgency</span>
+        </div>
+    </div>
+
+    <script>
+        function esc(s) {
+            if (s == null) return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function getStatus(days, error) {
+            if (error)      return { cls: 'error',    label: 'Error',    color: '#888' };
+            if (days < 0)   return { cls: 'expired',  label: 'Expired',  color: '#dc2626' };
+            if (days <= 7)  return { cls: 'critical', label: 'Critical', color: '#ef4444' };
+            if (days <= 15) return { cls: 'warning',  label: 'Warning',  color: '#f97316' };
+            if (days <= 30) return { cls: 'soon',     label: 'Soon',     color: '#eab308' };
+            return                  { cls: 'ok',       label: 'Healthy',  color: '#22c55e' };
+        }
+
+        function siteIcon(site) {
+            const initial = site.charAt(0).toUpperCase();
+            const hue = site.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+            return `<div class="site-icon" style="background:hsl(${hue},40%,20%);color:hsl(${hue},70%,65%)">${initial}</div>`;
+        }
+
+        function renderData(data) {
+            data.sort((a, b) => {
+                if (a.error && !b.error) return 1;
+                if (!a.error && b.error) return -1;
+                return a.days - b.days;
+            });
+
+            const total   = data.length;
+            const ok      = data.filter(r => !r.error && r.days > 30).length;
+            const warn    = data.filter(r => !r.error && r.days > 7 && r.days <= 30).length;
+            const crit    = data.filter(r => !r.error && r.days >= 0 && r.days <= 7).length;
+            const expired = data.filter(r => !r.error && r.days < 0).length;
+            const errs    = data.filter(r => r.error).length;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat"><span class="stat-dot green"></span>${ok} Healthy</div>
+                <div class="stat"><span class="stat-dot yellow"></span>${warn} Warning</div>
+                <div class="stat"><span class="stat-dot red"></span>${crit} Critical</div>
+                <div class="stat"><span class="stat-dot expired"></span>${expired} Expired</div>
+                <div class="stat"><span class="stat-dot gray"></span>${errs} Error</div>
+            `;
+
+            const maxDays = 90;
+            let rows = '';
+
+            data.forEach((r, i) => {
+                const s = getStatus(r.days, r.error);
+                let daysDisplay;
+                if (r.error) {
+                    daysDisplay = '—';
+                } else if (r.days < 0) {
+                    daysDisplay = `${Math.abs(r.days)}d ago`;
+                } else {
+                    daysDisplay = `${r.days}d`;
+                }
+                const barPct = r.error ? 0 : Math.min(100, Math.max(0, (r.days / maxDays) * 100));
+                const errorAttr = r.error ? ` class="error-tip" title="${esc(r.error)}"` : '';
+                const delay = i * 0.03;
+
+                rows += `
+                <tr style="animation-delay:${delay}s">
+                    <td>
+                        <div class="site-name">
+                            ${siteIcon(r.site)}
+                            <span${errorAttr}>${esc(r.site)}</span>
+                        </div>
+                    </td>
+                    <td><span class="issuer">${esc(r.issuer)}</span></td>
+                    <td><span class="expiry-date">${esc(r.expiry)}</span></td>
+                    <td>
+                        <div class="days-bar-wrap">
+                            <div class="days-bar">
+                                <div class="days-bar-fill" style="width:${barPct}%;background:${s.color}"></div>
+                            </div>
+                            <span class="days-cell" style="color:${s.color}">${daysDisplay}</span>
+                        </div>
+                    </td>
+                    <td class="status-cell">
+                        <span class="status-badge ${s.cls}">
+                            <span class="dot"></span>
+                            ${s.label}
+                        </span>
+                    </td>
+                </tr>`;
+            });
+
+            document.getElementById('tbody').innerHTML = rows;
+            document.getElementById('subtitle').textContent = `${total} sites monitored`;
+            document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch('/api');
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (data.length > 0) renderData(data);
+            } catch (e) {
+                console.error('Fetch failed:', e);
+            }
+        }
+
+        fetchData();
+        setInterval(fetchData, 300000);
+    </script>
+</body>
+</html>

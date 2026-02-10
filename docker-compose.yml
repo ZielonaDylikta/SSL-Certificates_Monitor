@@ -1,0 +1,20 @@
+services:
+  certcheck:
+    build: .
+    container_name: certcheck
+    ports:
+      - "7921:7921"
+    volumes:
+      - ./sites.csv:/app/sites.csv
+      - ./template.html:/app/template.html
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7921/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    environment:
+      - TEAMS_WEBHOOK=https://MS_Teams-Webhook/powerautomate/automations/direct/workflows
+      - ALERT_DAYS=15
+      - TEST_KEY=mysecretkey123
