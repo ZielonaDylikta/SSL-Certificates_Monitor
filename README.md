@@ -20,6 +20,7 @@ Simple, zero-dependency SSL certificate expiration checker with a premium dashbo
 - ✅ Hot-reload sites and template without restart
 - ✅ Zero external dependencies (stdlib only)
 - ✅ Docker ready with compose
+<img width="1178" height="913" alt="ssl_cer_monitor" src="https://github.com/user-attachments/assets/19c9f330-4c16-4952-9a1f-058f4617d5b6" />
 
 ## Quick Start
 
