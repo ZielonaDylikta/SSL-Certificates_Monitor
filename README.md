@@ -7,107 +7,178 @@ Simple, zero-dependency SSL certificate expiration checker with a premium dashbo
 ![Dependencies](https://img.shields.io/badge/Dependencies-None-green)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-## Features
-
-- ✅ Monitor 20+ websites simultaneously
-- ✅ Parallel certificate checking (fast)
-- ✅ Premium dark dashboard with animations
-- ✅ Microsoft Teams alerts via Workflows webhook
-- ✅ Alert cooldown (once per day per site)
-- ✅ Alert history persists across restarts
-- ✅ Health check endpoint for Docker
-- ✅ Test endpoints with auth & rate limiting
-- ✅ Hot-reload sites and template without restart
-- ✅ Zero external dependencies (stdlib only)
-- ✅ Docker ready with compose
 <img width="1178" height="913" alt="ssl_cer_monitor" src="https://github.com/user-attachments/assets/19c9f330-4c16-4952-9a1f-058f4617d5b6" />
 
-## Quick Start
+## ✨ Features
 
-### 1. Clone / Download
+- ✅ Monitor unlimited websites simultaneously
+- ✅ Parallel certificate checking with 10 threads (fast)
+- ✅ Premium dark dashboard with smooth animations
+- ✅ Microsoft Teams alerts via Workflows webhook
+- ✅ Smart alert cooldown (once per day per site)
+- ✅ Alert history persists across container restarts
+- ✅ Health check endpoint for Docker monitoring
+- ✅ Test endpoints with authentication & rate limiting
+- ✅ Hot-reload sites and template without restart
+- ✅ Zero external dependencies (Python stdlib only)
+- ✅ Docker ready with docker-compose
+
+## 📋 Table of Contents
+
+- [Quick Start](#-quick-start)
+- [Deployment](#-deployment)
+- [Configuration](#-configuration)
+- [API Endpoints](#-api-endpoints)
+- [Microsoft Teams Setup](#-microsoft-teams-setup)
+- [Usage](#-usage)
+- [Project Structure](#-project-structure)
+- [How It Works](#-how-it-works)
+- [Troubleshooting](#-troubleshooting)
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker & Docker Compose (recommended)
+- OR Python 3.8+ (for standalone)
+- Network access to monitored sites (port 443)
+- Microsoft Teams (optional, for alerts)
+
+### 1. Clone Repository
 
 ```bash
-mkdir certcheck && cd certcheck
+git clone <repository-url>
+cd certcheck
+```
 
-update docker-compose.yml with your webhooks
-docker compose up -d --build
+### 2. Configure Sites to Monitor
 
-certcheck/
-├── certcheck.py
-├── template.html
-├── sites.csv
-├── Dockerfile
-├── docker-compose.yml
-└── README.md
+Edit `sites.csv` and add your domains (one per line):
 
-
+```csv
 # My websites to monitor
 google.com
 github.com
 mycompany.com
 internal.mysite.com
+```
 
+### 3. Configure Environment Variables
 
-┌─────────────────────────────────────────────────────────┐
-│                 🔒 Certificate Monitor                  │
-│                  21 sites monitored                     │
-│                                                         │
-│  ● 18 Healthy  ● 2 Warning  ● 1 Critical  ● 0 Error     │
-│                                                         │
-│  Site              Issuer      Expires   Days   Status  │
-│  ───────────────── ─────────── ──────── ────── ──────── │
-│  critical.com      Let's Enc   01-20     ██ 5d  🔴 Crit │
-│  warning.com       DigiCert    02-01     ███ 17d 🟡 Soon│
-│  google.com        Google      04-15     ████ 89d 🟢 OK │
-│  github.com        DigiCert    05-20     ████ 124d 🟢 OK│
-└─────────────────────────────────────────────────────────┘
+Edit `docker-compose.yml` and set your configuration:
 
+```yaml
+environment:
+  - TEAMS_WEBHOOK=https://your-teams-webhook-url
+  - ALERT_DAYS=15
+  - TEST_KEY=your-secret-key
+```
 
+### 4. Start the Application
 
-┌──────────────────────────────────────────────────┐
-│  🔒 SSL Certificate Alert                        │
-│  2 certificates expiring within 15 days          │
-│                                                  │
-│  Site              │ Status        │ Expires     │
-│  ──────────────────┼───────────────┼──────────   │
-│  critical.com      │ 🔴 5d left    │ 2025-01-20  │
-│  warning.com       │ 🟡 13d left   │ 2025-01-28  │
-└──────────────────────────────────────────────────┘
+```bash
+docker compose up -d --build
+```
 
-COMPOSE
+### 5. Access Dashboard
 
-services:
-  certcheck:
-    build: .
-    container_name: certcheck
-    ports:
-      - "7921:7921"
-    volumes:
-      - ./sites.csv:/app/sites.csv
-      - ./template.html:/app/template.html
-      - ./data:/app/data
-    restart: unless-stopped
-    environment:
-      - TEAMS_WEBHOOK=https://your-webhook-url-here
-      - ALERT_DAYS=15
-      - TEST_KEY=mysecretkey123
+Open your browser and navigate to:
+```
+http://localhost:7921
+```
 
+## 🐳 Deployment
 
+### Docker Compose (Recommended)
 
-Endpoint		Auth	Description
-GET /			No	Dashboard
-GET /api		No	JSON certificate data
-GET /health		No	Health check (used by Docker)
-GET /test-webhook	Yes	Test Teams webhook connection
-GET /test-alert		Yes	Send fake alert to Teams
+```bash
+# Build and start
+docker compose up -d --build
 
+# View logs
+docker compose logs -f
 
-API Response
-Bash
+# Stop
+docker compose down
 
+# Restart
+docker compose restart
+
+# Check status
+docker compose ps
+```
+
+### Standalone Python
+
+```bash
+# Run directly
+python certcheck.py
+
+# With environment variables
+TEAMS_WEBHOOK=https://your-webhook ALERT_DAYS=15 python certcheck.py
+```
+
+### Docker Only
+
+```bash
+# Build image
+docker build -t certcheck .
+
+# Run container
+docker run -d \
+  -p 7921:7921 \
+  -v $(pwd)/sites.csv:/app/sites.csv \
+  -v $(pwd)/template.html:/app/template.html \
+  -v $(pwd)/data:/app/data \
+  -e TEAMS_WEBHOOK=https://your-webhook \
+  -e ALERT_DAYS=15 \
+  -e TEST_KEY=mysecretkey \
+  --name certcheck \
+  certcheck
+```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `TEAMS_WEBHOOK` | No | - | Microsoft Teams Workflows webhook URL for alerts |
+| `ALERT_DAYS` | No | 15 | Alert threshold in days (certificates expiring within this period) |
+| `TEST_KEY` | No | - | Secret key to protect test endpoints |
+
+### Files
+
+| File | Description | Hot-Reload |
+|------|-------------|------------|
+| `sites.csv` | List of domains to monitor (one per line) | ✅ Yes |
+| `template.html` | Dashboard HTML template | ✅ Yes |
+| `data/alerts_sent.json` | Alert history (auto-created) | - |
+
+### Port Configuration
+
+Default port: `7921`
+
+To change the port, modify:
+1. `certcheck.py` - Change `PORT = 7921`
+2. `docker-compose.yml` - Change port mapping `"7921:7921"`
+3. `Dockerfile` - Change `EXPOSE 7921`
+
+## 📡 API Endpoints
+
+### Dashboard
+```bash
+GET /
+```
+Web interface with certificate status visualization
+
+### API Data
+```bash
 curl http://localhost:7921/api
-JSON
+```
 
+Response:
+```json
 [
   {
     "site": "google.com",
@@ -117,11 +188,15 @@ JSON
     "error": null
   }
 ]
-Health Check
-Bash
+```
 
+### Health Check
+```bash
 curl http://localhost:7921/health
+```
 
+Response:
+```json
 {
   "status": "ok",
   "sites_total": 21,
@@ -131,43 +206,137 @@ curl http://localhost:7921/health
   "teams_configured": true,
   "alert_threshold": 15,
   "check_interval": 3600,
-  "uptime_seconds": 86400
+  "uptime_seconds": 86400,
+  "timestamp": "2025-02-11T10:30:00+00:00"
 }
+```
 
-
-Test Endpoints 
-
+### Test Webhook (Protected)
+```bash
 # With header
 curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-webhook
-curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-alert
 
 # With query parameter
 curl http://localhost:7921/test-webhook?key=mysecretkey123
+```
+
+### Test Alert (Protected)
+```bash
+# With header
+curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-alert
+
+# With query parameter
 curl http://localhost:7921/test-alert?key=mysecretkey123
+```
 
-Docker Commands
+## 📢 Microsoft Teams Setup
 
-Command	Description
-docker compose up -d --build	Build and start
-docker compose down	Stop
-docker compose restart	Restart
-docker compose logs -f	Watch logs
-docker compose ps	Check status
+### 1. Create Workflow Webhook
 
+1. Open Microsoft Teams
+2. Go to the channel where you want alerts
+3. Click "..." → "Workflows"
+4. Create a new workflow with "Post to a channel when a webhook request is received"
+5. Copy the webhook URL
 
+### 2. Configure Webhook
+
+Add the webhook URL to `docker-compose.yml`:
+
+```yaml
+environment:
+  - TEAMS_WEBHOOK=https://prod-xx.eastus.logic.azure.com:443/workflows/...
+```
+
+### 3. Test Connection
+
+```bash
+# Test webhook connectivity
+curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-webhook
+
+# Send test alert
+curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-alert
+```
+
+### Teams Alert Example
+
+```
+┌──────────────────────────────────────────────────┐
+│  🔒 SSL Certificate Alert                        │
+│  2 certificates expiring within 15 days          │
+│                                                  │
+│  Site              │ Status        │ Expires     │
+│  ──────────────────┼───────────────┼──────────   │
+│  critical.com      │ 🔴 5d left    │ 2025-01-20  │
+│  warning.com       │ 🟡 13d left   │ 2025-01-28  │
+└──────────────────────────────────────────────────┘
+```
+
+## 📖 Usage
+
+### Adding Sites
+
+Edit `sites.csv` (changes are detected automatically):
+
+```csv
+# Production sites
+example.com
+api.example.com
+
+# Development sites
+dev.example.com
+staging.example.com
+```
+
+### Monitoring Status
+
+Access the dashboard at `http://localhost:7921` to see:
+- Real-time certificate status
+- Days until expiration
+- Certificate issuer
+- Visual status indicators
+- Expiration timeline bars
+
+### Status Levels
+
+| Status | Days Left | Color | Teams Alert |
+|--------|-----------|-------|-------------|
+| 🟢 Healthy | > 30 | Green | No |
+| 🟡 Soon | 16-30 | Yellow | Yes |
+| 🟠 Warning | 8-15 | Orange | Yes |
+| 🔴 Critical | 0-7 | Red (pulsing) | Yes |
+| 🔴 Expired | < 0 | Dark red (pulsing) | Yes |
+| ❌ Error | - | Gray | No |
+
+### Alert Logic
+
+| Condition | Action |
+|-----------|--------|
+| Cert > 15 days remaining | No alert |
+| Cert ≤ 15 days, not alerted today | Send Teams alert |
+| Cert ≤ 15 days, already alerted today | Skip (cooldown) |
+| Next day, still expiring | Alert again |
+| Container restart | Loads alert history, no duplicates |
+
+## 📁 Project Structure
+
+```
 certcheck/
-├── certcheck.py          # Main application
-├── template.html         # Dashboard UI
-├── sites.csv             # Sites to monitor (editable)
+├── certcheck.py          # Main application (HTTP server + cert checker)
+├── template.html         # Dashboard UI (dark theme with animations)
+├── sites.csv             # Sites to monitor (editable, hot-reload)
 ├── data/                 # Persistent data (auto-created)
 │   └── alerts_sent.json  # Alert history (auto-created)
-├── Dockerfile
-├── docker-compose.yml
-└── README.md
+├── Dockerfile            # Container image definition
+├── docker-compose.yml    # Docker Compose configuration
+└── README.md             # This file
+```
 
+## 🔧 How It Works
 
-How it works ?
+### Architecture
 
+```
                     ┌──────────────┐
                     │  sites.csv   │
                     └──────┬───────┘
@@ -183,38 +352,34 @@ How it works ?
        │  Dashboard  │ │ API  │ │ Teams Alert │
        │  :7921/     │ │ /api │ │ (if < 15d)  │
        └─────────────┘ └──────┘ └─────────────┘
+```
 
-Certificate Check Cycle
-Load sites from sites.csv
-Check all certificates in parallel (10 threads)
-Update dashboard data
-Check if any cert expires within 15 days
-Send Teams alert (once per day per site)
-Save alert history to disk
-Wait 1 hour
-Repeat
-Alert Logic
-Condition	Action
-Cert > 15 days remaining	Nothing
-Cert ≤ 15 days, not alerted today	Send Teams alert
-Cert ≤ 15 days, already alerted today	Skip (cooldown)
-Next day, still expiring	Alert again
-Container restart	Loads alert history, no duplicate
+### Certificate Check Cycle
 
+1. Load sites from `sites.csv`
+2. Check all certificates in parallel (10 threads)
+3. Update dashboard data
+4. Check if any cert expires within threshold (default: 15 days)
+5. Send Teams alert (once per day per site)
+6. Save alert history to disk
+7. Wait 1 hour (3600 seconds)
+8. Repeat
 
-Status Levels
-Status	Days Left	Dashboard	Teams
-🟢 Healthy	> 30	Green	No alert
-🟡 Soon	16 — 30	Yellow	Alert
-🟠 Warning	8 — 15	Orange	Alert
-🔴 Critical	0 — 7	Red (pulsing)	Alert
-🔴 Expired	< 0	Dark red (pulsing)	Alert
-❌ Error	—	Gray	No alert
+### Key Features
 
+- **Parallel Processing**: Uses ThreadPoolExecutor with 10 workers for fast checking
+- **Hot Reload**: Automatically detects changes to `sites.csv` and `template.html`
+- **Alert Cooldown**: Prevents spam by alerting once per day per site
+- **Persistent History**: Alert history survives container restarts
+- **Health Monitoring**: Built-in health check endpoint for Docker
+- **Zero Dependencies**: Uses only Python standard library
 
-Teams check 
+## 🔍 Troubleshooting
 
-# 1. Check webhook is set
+### Teams Alerts Not Working
+
+```bash
+# 1. Check webhook is configured
 curl http://localhost:7921/health
 
 # 2. Test webhook connection
@@ -225,22 +390,59 @@ curl http://localhost:7921/test-alert?key=YOUR_TEST_KEY
 
 # 4. Check logs
 docker compose logs -f | grep TEAMS
+```
 
-# Test webhook connection
-curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-webhook
+### Common Teams Errors
 
-# Test fake alert
-curl -H "X-Test-Key: mysecretkey123" http://localhost:7921/test-alert
+| Error | Solution |
+|-------|----------|
+| `TEAMS_WEBHOOK not set` | Add `TEAMS_WEBHOOK` to `docker-compose.yml` |
+| `HTTP 404` | Webhook URL is wrong, recreate in Teams |
+| `HTTP 400` | Bad payload, check logs for details |
+| Test passes but no message | Check workflow is enabled in Teams |
 
-Common Teams errors
-Error	Fix
-TEAMS_WEBHOOK not set	Add TEAMS_WEBHOOK to docker-compose.yml
-HTTP 404	Webhook URL is wrong, recreate in Teams
-HTTP 400	Bad payload, check logs for details
-Test passes but no message	Check flow is enabled in Teams Workflows
+### Certificate Check Failures
 
-Requirements
-Python 3.8+ (no external packages)
-Docker & Docker Compose (optional, recommended)
-Network access to monitored sites (port 443)
-Microsoft Teams (optional, for alerts)
+```bash
+# View detailed logs
+docker compose logs -f certcheck
+
+# Check specific site manually
+docker exec certcheck python -c "from certcheck import check_cert; print(check_cert('example.com'))"
+```
+
+### Port Already in Use
+
+```bash
+# Find process using port 7921
+sudo lsof -i :7921
+
+# Change port in docker-compose.yml
+ports:
+  - "8080:7921"  # Use port 8080 instead
+```
+
+### Dashboard Not Loading
+
+```bash
+# Check container status
+docker compose ps
+
+# Restart container
+docker compose restart
+
+# Rebuild if needed
+docker compose up -d --build
+```
+
+## 📝 License
+
+MIT License - Feel free to use and modify
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📞 Support
+
+For issues and questions, please open an issue on GitHub.
