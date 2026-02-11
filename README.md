@@ -47,7 +47,7 @@ Simple, zero-dependency SSL certificate expiration checker with a premium dashbo
 ### 1. Clone Repository
 
 ```bash
-git clone [<repository-url>](https://github.com/ZielonaDylikta/SSL-Certificates_Monitor.git)
+git clone https://github.com/ZielonaDylikta/SSL-Certificates_Monitor.git
 cd SSL-Certificates_Monitor
 ```
 
