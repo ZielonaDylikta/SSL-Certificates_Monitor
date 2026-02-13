@@ -1,0 +1,11 @@
+[project]
+name = "ssl-certificate-monitor"
+version = "1.0.0"
+description = "Simple SSL certificate expiration checker with dashboard and Microsoft Teams alerts"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+dependencies = []
+
+[project.scripts]
+certcheck = "certcheck:main"

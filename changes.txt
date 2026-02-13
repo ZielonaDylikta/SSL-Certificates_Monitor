@@ -1,0 +1,29 @@
+Code Review Fixes - SSL Certificate Monitor
+=============================================
+
+certcheck.py:
+- Use hmac.compare_digest() for timing-safe auth key comparison
+- Parse query params with urllib.parse instead of substring matching
+- Only mark alerts as sent after successful Teams webhook delivery
+- Atomic file writes for alert history (tempfile + os.replace)
+- Add /config endpoint so frontend gets dynamic ALERT_DAYS threshold
+- Remove wildcard Access-Control-Allow-Origin header from /api
+- Wrap checker_loop in try/except to prevent silent thread crashes
+- Log warning when site reload returns empty list
+- Start HTTP server immediately instead of waiting for first check
+- Use cached results length in test_teams_webhook instead of load_sites()
+- Log 4xx/5xx HTTP responses instead of suppressing all logs
+- Compute fake test alert dates relative to today
+
+template.html:
+- Fetch /config to get ALERT_DAYS from backend
+- Use dynamic thresholds for status classification and stat counts
+
+docker-compose.yml:
+- Replace hardcoded secrets with env_file reference to .env
+
+New files:
+- .env            - Environment variables with secrets (gitignored)
+- .env.example    - Template for .env without real values
+- .gitignore      - Excludes .env, data/, __pycache__/
+- pyproject.toml  - Project metadata
