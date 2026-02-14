@@ -14,7 +14,5 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-    environment:
-      - TEAMS_WEBHOOK=https://MS_Teams-Webhook/powerautomate/automations/direct/workflows
-      - ALERT_DAYS=15
-      - TEST_KEY=mysecretkey123
+    env_file:
+      - .env

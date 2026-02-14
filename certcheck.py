@@ -14,10 +14,14 @@ import ssl
 import socket
 import datetime
 import csv
+import hmac
 import json
 import os
+import tempfile
 import threading
 import time
+import traceback
+import urllib.parse
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -61,11 +65,17 @@ def load_alert_history():
 
 
 def save_alert_history():
-    """Save alert history to disk."""
+    """Save alert history to disk atomically."""
     try:
         with _alerts_sent_lock:
-            with open(ALERTS_FILE, 'w') as f:
-                json.dump(_alerts_sent, f)
+            fd, tmp_path = tempfile.mkstemp(dir=DATA_DIR, suffix='.tmp')
+            try:
+                with os.fdopen(fd, 'w') as f:
+                    json.dump(_alerts_sent, f)
+                os.replace(tmp_path, ALERTS_FILE)
+            except Exception:
+                os.unlink(tmp_path)
+                raise
     except Exception as e:
         print(f"[WARNING] Could not save alert history: {e}")
 
@@ -187,7 +197,7 @@ def test_teams_webhook():
                         "facts": [
                             {"title": "Alert threshold", "value": f"{ALERT_DAYS} days"},
                             {"title": "Check interval", "value": f"{CHECK_INTERVAL}s"},
-                            {"title": "Sites monitored", "value": str(len(load_sites()))},
+                            {"title": "Sites monitored", "value": str(len(results))},
                         ]
                     }
                 ]
@@ -199,9 +209,9 @@ def test_teams_webhook():
 
 
 def notify_teams(expiring):
-    """Send Teams notification via Workflows webhook."""
+    """Send Teams notification via Workflows webhook. Returns True on success."""
     if not TEAMS_WEBHOOK or not expiring:
-        return
+        return False
 
     count = len(expiring)
     most_urgent = min(r['days'] for r in expiring)
@@ -284,6 +294,7 @@ def notify_teams(expiring):
         print(f"[TEAMS] ✓ Alert sent for {count} site{'s' if count > 1 else ''}")
     else:
         print(f"[TEAMS] ✗ Failed: {msg}")
+    return success
 
 
 def check_alerts(data):
@@ -299,40 +310,49 @@ def check_alerts(data):
                 last = _alerts_sent.get(r['site'])
                 if last != today:
                     expiring.append(r)
-                    _alerts_sent[r['site']] = today
 
     if expiring:
-        notify_teams(expiring)
-        save_alert_history()
+        success = notify_teams(expiring)
+        if success:
+            with _alerts_sent_lock:
+                for r in expiring:
+                    _alerts_sent[r['site']] = today
+            save_alert_history()
 
 
 def checker_loop(sites):
     while True:
-        print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Checking {len(sites)} sites...")
-        start = time.time()
-        data = []
+        try:
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Checking {len(sites)} sites...")
+            start = time.time()
+            data = []
 
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-            futures = {pool.submit(check_cert, site): site for site in sites}
-            for future in as_completed(futures):
-                r = future.result()
-                status = f"{r['days']}d" if not r['error'] else 'ERROR'
-                print(f"  {r['site']:30s} {status}")
-                data.append(r)
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+                futures = {pool.submit(check_cert, site): site for site in sites}
+                for future in as_completed(futures):
+                    r = future.result()
+                    status = f"{r['days']}d" if not r['error'] else 'ERROR'
+                    print(f"  {r['site']:30s} {status}")
+                    data.append(r)
 
-        elapsed = time.time() - start
-        with lock:
-            results.clear()
-            results.extend(data)
-        ready.set()
+            elapsed = time.time() - start
+            with lock:
+                results.clear()
+                results.extend(data)
+            ready.set()
 
-        check_alerts(data)
+            check_alerts(data)
 
-        new_sites = load_sites()
-        if new_sites:
-            sites = new_sites
+            new_sites = load_sites()
+            if new_sites:
+                sites = new_sites
+            else:
+                print("[WARNING] Site reload returned empty list, keeping previous sites")
 
-        print(f"Done in {elapsed:.1f}s. Next check in {CHECK_INTERVAL}s\n")
+            print(f"Done in {elapsed:.1f}s. Next check in {CHECK_INTERVAL}s\n")
+        except Exception:
+            print(f"[ERROR] Checker loop error:\n{traceback.format_exc()}")
+
         time.sleep(CHECK_INTERVAL)
 
 
@@ -340,9 +360,12 @@ def check_test_auth(handler):
     """Check if test endpoint access is authorized."""
     if not TEST_KEY:
         return True
-    if handler.headers.get('X-Test-Key', '') == TEST_KEY:
+    header_key = handler.headers.get('X-Test-Key', '')
+    if header_key and hmac.compare_digest(header_key, TEST_KEY):
         return True
-    if f'key={TEST_KEY}' in handler.path:
+    parsed = urllib.parse.urlparse(handler.path)
+    query_key = urllib.parse.parse_qs(parsed.query).get('key', [''])[0]
+    if query_key and hmac.compare_digest(query_key, TEST_KEY):
         return True
     return False
 
@@ -372,7 +395,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(payload)))
                 self.send_header('Cache-Control', 'no-cache, no-store')
-                self.send_header('Access-Control-Allow-Origin', '*')
                 self.end_headers()
                 self.wfile.write(payload)
 
@@ -399,6 +421,22 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            elif path == '/config':
+                with lock:
+                    site_count = len(results)
+                config = {
+                    "alert_days": ALERT_DAYS,
+                    "check_interval": CHECK_INTERVAL,
+                    "sites_total": site_count,
+                }
+                payload = json.dumps(config).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(payload)))
+                self.send_header('Cache-Control', 'no-cache, no-store')
                 self.end_headers()
                 self.wfile.write(payload)
 
@@ -469,10 +507,11 @@ class Handler(BaseHTTPRequestHandler):
                     return
 
                 print("[TEST] Sending fake alert...")
+                today = datetime.date.today()
                 fake_data = [
-                    {"site": "test-expired.example.com", "expiry": "2024-01-01", "days": -30, "issuer": "Test CA", "error": None},
-                    {"site": "test-critical.example.com", "expiry": "2025-01-20", "days": 5, "issuer": "Test CA", "error": None},
-                    {"site": "test-warning.example.com", "expiry": "2025-01-28", "days": 13, "issuer": "Test CA", "error": None},
+                    {"site": "test-expired.example.com", "expiry": (today - datetime.timedelta(days=30)).isoformat(), "days": -30, "issuer": "Test CA", "error": None},
+                    {"site": "test-critical.example.com", "expiry": (today + datetime.timedelta(days=5)).isoformat(), "days": 5, "issuer": "Test CA", "error": None},
+                    {"site": "test-warning.example.com", "expiry": (today + datetime.timedelta(days=13)).isoformat(), "days": 13, "issuer": "Test CA", "error": None},
                 ]
                 notify_teams(fake_data)
 
@@ -512,8 +551,9 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-    def log_message(self, *args):
-        pass
+    def log_message(self, format, *args):
+        if args and str(args[0]).startswith(('4', '5')):
+            print(f"[HTTP] {self.address_string()} {format % args}")
 
 
 def main():
@@ -541,21 +581,19 @@ def main():
     load_template()
     load_alert_history()
 
-    t = threading.Thread(target=checker_loop, args=(sites,), daemon=True)
-    t.start()
-
-    print("Waiting for first check...")
-    ready.wait(timeout=120)
-
     try:
         server = HTTPServer(('0.0.0.0', PORT), Handler)
     except OSError as e:
         print(f"[ERROR] Cannot start on port {PORT}: {e}")
         return
 
+    t = threading.Thread(target=checker_loop, args=(sites,), daemon=True)
+    t.start()
+
     print(f"  Dashboard:      http://localhost:{PORT}")
     print(f"  API:            http://localhost:{PORT}/api")
     print(f"  Health:         http://localhost:{PORT}/health")
+    print(f"  Config:         http://localhost:{PORT}/config")
     print(f"  Test webhook:   http://localhost:{PORT}/test-webhook")
     print(f"  Test alert:     http://localhost:{PORT}/test-alert")
     print()

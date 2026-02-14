@@ -347,13 +347,15 @@
                 .replace(/'/g, '&#39;');
         }
 
+        let ALERT_DAYS = 15;
+
         function getStatus(days, error) {
-            if (error)      return { cls: 'error',    label: 'Error',    color: '#888' };
-            if (days < 0)   return { cls: 'expired',  label: 'Expired',  color: '#dc2626' };
-            if (days <= 7)  return { cls: 'critical', label: 'Critical', color: '#ef4444' };
-            if (days <= 15) return { cls: 'warning',  label: 'Warning',  color: '#f97316' };
-            if (days <= 30) return { cls: 'soon',     label: 'Soon',     color: '#eab308' };
-            return                  { cls: 'ok',       label: 'Healthy',  color: '#22c55e' };
+            if (error)            return { cls: 'error',    label: 'Error',    color: '#888' };
+            if (days < 0)         return { cls: 'expired',  label: 'Expired',  color: '#dc2626' };
+            if (days <= 7)        return { cls: 'critical', label: 'Critical', color: '#ef4444' };
+            if (days <= ALERT_DAYS)     return { cls: 'warning',  label: 'Warning',  color: '#f97316' };
+            if (days <= ALERT_DAYS * 2) return { cls: 'soon',     label: 'Soon',     color: '#eab308' };
+            return                        { cls: 'ok',       label: 'Healthy',  color: '#22c55e' };
         }
 
         function siteIcon(site) {
@@ -370,8 +372,8 @@
             });
 
             const total   = data.length;
-            const ok      = data.filter(r => !r.error && r.days > 30).length;
-            const warn    = data.filter(r => !r.error && r.days > 7 && r.days <= 30).length;
+            const ok      = data.filter(r => !r.error && r.days > ALERT_DAYS * 2).length;
+            const warn    = data.filter(r => !r.error && r.days > 7 && r.days <= ALERT_DAYS * 2).length;
             const crit    = data.filter(r => !r.error && r.days >= 0 && r.days <= 7).length;
             const expired = data.filter(r => !r.error && r.days < 0).length;
             const errs    = data.filter(r => r.error).length;
@@ -444,7 +446,19 @@
             }
         }
 
-        fetchData();
+        async function loadConfig() {
+            try {
+                const res = await fetch('/config');
+                if (res.ok) {
+                    const cfg = await res.json();
+                    ALERT_DAYS = cfg.alert_days || 15;
+                }
+            } catch (e) {
+                console.error('Config fetch failed:', e);
+            }
+        }
+
+        loadConfig().then(() => fetchData());
         setInterval(fetchData, 300000);
     </script>
 </body>
